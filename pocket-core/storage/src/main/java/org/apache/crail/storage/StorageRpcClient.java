@@ -73,7 +73,7 @@ public class StorageRpcClient {
 		RpcGetDataNode fx = this.rpcConnection.getDataNode(dnInfo).get(CrailConstants.RPC_TIMEOUT, TimeUnit.MILLISECONDS);
 		if(fx.getError() != RpcErrors.ERR_OK){
 //			throw new Exception("Error returned in the RPC type: " + RpcErrors.messages[fx.getError()]);
-      System.out.println("Error returned in the RPC type: " RpcErrors.messages[fx.getError()]);
+      System.out.println("Error returned in the RPC type: " + RpcErrors.messages[fx.getError()]);
 		}
 		return fx.getStatistics();
 	}	
