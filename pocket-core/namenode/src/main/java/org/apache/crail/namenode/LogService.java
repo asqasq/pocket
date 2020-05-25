@@ -112,7 +112,7 @@ public class LogService {
 		try {
 			switch(record.getCmd()) {
 			case RpcProtocol.CMD_CREATE_FILE:
-				error = service.createFile(record.createFile(), response.createFile(), response);
+				error = service.createFile(record.createFile(), response.createFile(), response, 0, null);
 				long fd = response.createFile().getFile().getFd();
 				long token = response.createFile().getFile().getToken();
 				tokens.put(response.createFile().getFile().getFd(), response.createFile().getFile().getToken());
@@ -126,11 +126,11 @@ public class LogService {
 				error = service.removeFile(record.removeFile(), response.delFile(), response);
 				break;				
 			case RpcProtocol.CMD_RENAME_FILE:
-				error = service.renameFile(record.renameFile(), response.getRename(), response);
+				error = service.renameFile(record.renameFile(), response.getRename(), response, 0);
 				break;		
 			case RpcProtocol.CMD_GET_BLOCK:
 				record.getBlock().setToken(tokens.get(record.getBlock().getFd()));
-				error = service.getBlock(record.getBlock(), response.getBlock(), response);
+				error = service.getBlock(record.getBlock(), response.getBlock(), response, 0);
 				break;
 			case RpcProtocol.CMD_SET_BLOCK:
 				error = service.setBlock(record.setBlock(), response.getVoid(), response);

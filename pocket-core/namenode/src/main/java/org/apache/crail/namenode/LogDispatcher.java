@@ -53,11 +53,11 @@ public class LogDispatcher implements RpcNameNodeService {
 
 	@Override
 	public short createFile(CreateFileReq request, CreateFileRes response,
-			RpcNameNodeState errorState) throws Exception {
+			RpcNameNodeState errorState, int nrRetries, RpcNameNodeContext context) throws Exception {
 		LogRecord record = new LogRecord(request);
 		record.setCommand(RpcProtocol.CMD_CREATE_FILE);
 		logService.writeRecord(record);
-		return service.createFile(request, response, errorState);
+		return service.createFile(request, response, errorState, nrRetries, context);
 	}
 
 	@Override
@@ -86,11 +86,11 @@ public class LogDispatcher implements RpcNameNodeService {
 
 	@Override
 	public short renameFile(RenameFileReq request, RenameRes response,
-			RpcNameNodeState errorState) throws Exception {
+			RpcNameNodeState errorState, int nrRetries) throws Exception {
 		LogRecord record = new LogRecord(request);
 		record.setCommand(RpcProtocol.CMD_RENAME_FILE);
 		logService.writeRecord(record);		
-		return service.renameFile(request, response, errorState);
+		return service.renameFile(request, response, errorState, nrRetries);
 	}
 
 	@Override
@@ -110,11 +110,11 @@ public class LogDispatcher implements RpcNameNodeService {
 
 	@Override
 	public short getBlock(GetBlockReq request, GetBlockRes response,
-			RpcNameNodeState errorState) throws Exception {
+			RpcNameNodeState errorState, int nrRetries) throws Exception {
 		LogRecord record = new LogRecord(request);
 		record.setCommand(RpcProtocol.CMD_GET_BLOCK);
 		logService.writeRecord(record);		
-		return service.getBlock(request, response, errorState);
+		return service.getBlock(request, response, errorState, nrRetries);
 	}
 
 	@Override

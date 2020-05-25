@@ -45,11 +45,11 @@ import com.ibm.narpc.NaRPCServerEndpoint;
 import com.ibm.narpc.NaRPCServerGroup;
 import com.ibm.narpc.NaRPCService;
 
-public class TcpStorageServer implements Runnable, StorageServer, NaRPCService<TcpStorageRequest, TcpStorageResponse> {
+public class TcpStorageServer implements Runnable, StorageServer, NaRPCService<TcpStorageRequest, TcpStorageResponse, TcpStorageContext> {
 	private static final Logger LOG = CrailUtils.getLogger();
 
-	private NaRPCServerGroup<TcpStorageRequest, TcpStorageResponse> serverGroup;
-	private NaRPCServerEndpoint<TcpStorageRequest, TcpStorageResponse> serverEndpoint;
+	private NaRPCServerGroup<TcpStorageRequest, TcpStorageResponse, TcpStorageContext> serverGroup;
+	private NaRPCServerEndpoint<TcpStorageRequest, TcpStorageResponse, TcpStorageContext> serverEndpoint;
 	private InetSocketAddress address;
 	private boolean alive;
 	private long regions;
@@ -61,7 +61,7 @@ public class TcpStorageServer implements Runnable, StorageServer, NaRPCService<T
 	public void init(CrailConfiguration conf, String[] args) throws Exception {
 		TcpStorageConstants.init(conf, args);
 
-		this.serverGroup = new NaRPCServerGroup<TcpStorageRequest, TcpStorageResponse>(this, TcpStorageConstants.STORAGE_TCP_QUEUE_DEPTH, (int) CrailConstants.BLOCK_SIZE*2, TcpStorageConstants.STORAGE_TCP_NODELAY, TcpStorageConstants.STORAGE_TCP_CORES);
+		this.serverGroup = new NaRPCServerGroup<TcpStorageRequest, TcpStorageResponse, TcpStorageContext>(this, TcpStorageConstants.STORAGE_TCP_QUEUE_DEPTH, (int) CrailConstants.BLOCK_SIZE*2, TcpStorageConstants.STORAGE_TCP_NODELAY, TcpStorageConstants.STORAGE_TCP_CORES);
 		this.serverEndpoint = serverGroup.createServerEndpoint();
 		this.address = StorageUtils.getDataNodeAddress(TcpStorageConstants.STORAGE_TCP_INTERFACE, TcpStorageConstants.STORAGE_TCP_PORT);
 		serverEndpoint.bind(address);
@@ -151,7 +151,7 @@ public class TcpStorageServer implements Runnable, StorageServer, NaRPCService<T
 	}
 
 	@Override
-	public TcpStorageResponse processRequest(TcpStorageRequest request) {
+	public TcpStorageResponse processRequest(TcpStorageRequest request, int nrRetries, TcpStorageContext context) {
 		if (request.type() == TcpStorageProtocol.REQ_WRITE){
 			TcpStorageRequest.WriteRequest writeRequest = request.getWriteRequest();
 			ByteBuffer buffer = dataBuffers.get(writeRequest.getKey()).duplicate();
@@ -175,6 +175,12 @@ public class TcpStorageServer implements Runnable, StorageServer, NaRPCService<T
 			return new TcpStorageResponse(TcpStorageProtocol.RET_RPC_UNKNOWN);
 		}
 	}
+
+
+  @Override
+  public TcpStorageContext createContext() {
+    return new TcpStorageContext();
+  }
 
 	@Override
 	public void addEndpoint(NaRPCServerChannel newConnection) {

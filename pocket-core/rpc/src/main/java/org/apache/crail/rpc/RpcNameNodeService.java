@@ -21,7 +21,8 @@ package org.apache.crail.rpc;
 public interface RpcNameNodeService {
 	
 	public abstract short createFile(RpcRequestMessage.CreateFileReq request,
-			RpcResponseMessage.CreateFileRes response, RpcNameNodeState errorState)
+			RpcResponseMessage.CreateFileRes response, RpcNameNodeState errorState,
+      int nrRetries, RpcNameNodeContext context)
 			throws Exception;
 
 	public abstract short getFile(RpcRequestMessage.GetFileReq request,
@@ -38,7 +39,8 @@ public interface RpcNameNodeService {
 
 	public abstract short renameFile(
 			RpcRequestMessage.RenameFileReq request,
-			RpcResponseMessage.RenameRes response, RpcNameNodeState errorState)
+			RpcResponseMessage.RenameRes response, RpcNameNodeState errorState,
+      int nrRetries)
 			throws Exception;
 
 	public abstract short getDataNode(
@@ -51,7 +53,8 @@ public interface RpcNameNodeService {
 			throws Exception;
 
 	public abstract short getBlock(RpcRequestMessage.GetBlockReq request,
-			RpcResponseMessage.GetBlockRes response, RpcNameNodeState errorState)
+			RpcResponseMessage.GetBlockRes response, RpcNameNodeState errorState,
+      int nrRetries)
 			throws Exception;
 
 	public abstract short getLocation(RpcRequestMessage.GetLocationReq request,

@@ -35,8 +35,8 @@ public class TcpNameNodeServer extends RpcServer {
 	private static final Logger LOG = CrailUtils.getLogger();
 
 	private TcpRpcDispatcher dispatcher;
-	private NaRPCServerGroup<TcpNameNodeRequest, TcpNameNodeResponse> serverGroup;
-	private NaRPCServerEndpoint<TcpNameNodeRequest, TcpNameNodeResponse> serverEndpoint;
+	private NaRPCServerGroup<TcpNameNodeRequest, TcpNameNodeResponse, TcpNameNodeContext> serverGroup;
+	private NaRPCServerEndpoint<TcpNameNodeRequest, TcpNameNodeResponse, TcpNameNodeContext> serverEndpoint;
 
 	public TcpNameNodeServer(RpcNameNodeService service) throws IOException {
 		this.dispatcher = new TcpRpcDispatcher(service);
@@ -46,7 +46,7 @@ public class TcpNameNodeServer extends RpcServer {
 	public void init(CrailConfiguration conf, String[] arg1) throws Exception {
 		TcpRpcConstants.updateConstants(conf);
 		TcpRpcConstants.verify();
-		this.serverGroup = new NaRPCServerGroup<TcpNameNodeRequest, TcpNameNodeResponse>(
+		this.serverGroup = new NaRPCServerGroup<TcpNameNodeRequest, TcpNameNodeResponse, TcpNameNodeContext>(
 				dispatcher, TcpRpcConstants.NAMENODE_TCP_QUEUEDEPTH,
 				TcpRpcConstants.NAMENODE_TCP_MESSAGESIZE, true, TcpRpcConstants.NAMENODE_TCP_CORES);
 		this.serverEndpoint = serverGroup.createServerEndpoint();

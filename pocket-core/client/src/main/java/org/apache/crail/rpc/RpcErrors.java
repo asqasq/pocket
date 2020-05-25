@@ -58,6 +58,9 @@ public class RpcErrors {
 	public static short ERR_NO_SUCH_STORAGE_CLASS = 29;
 	public static short ERR_DIR_NOT_FOUND = 30;
 
+  // RPC error to indicate that the service would like to be retried with the same request
+	public static short ERR_RETRY = 31;
+
 	// more error codes which are used by the datanode side for operations
 	public static short ERR_DN_IOCTL_STOP = -100;
 	public static short ERR_DN_IOCTL_ADD_CORE = -101;

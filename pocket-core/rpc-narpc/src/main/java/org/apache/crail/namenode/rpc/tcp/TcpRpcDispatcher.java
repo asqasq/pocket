@@ -29,7 +29,7 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 
-public class TcpRpcDispatcher implements NaRPCService<TcpNameNodeRequest, TcpNameNodeResponse> {
+public class TcpRpcDispatcher implements NaRPCService<TcpNameNodeRequest, TcpNameNodeResponse, TcpNameNodeContext> {
 	public static final Logger LOG = CrailUtils.getLogger();
 	private RpcNameNodeService service;
 	
@@ -42,8 +42,13 @@ public class TcpRpcDispatcher implements NaRPCService<TcpNameNodeRequest, TcpNam
 		return new TcpNameNodeRequest();
 	}
 
+  @Override
+  public TcpNameNodeContext createContext() {
+    return new TcpNameNodeContext();
+  }
+
 	@Override
-	public TcpNameNodeResponse processRequest(TcpNameNodeRequest request) {
+	public TcpNameNodeResponse processRequest(TcpNameNodeRequest request, int nrRetries, TcpNameNodeContext context) {
 		TcpNameNodeResponse response = new TcpNameNodeResponse();
 		short error = RpcErrors.ERR_OK;
 		try {
@@ -51,7 +56,7 @@ public class TcpRpcDispatcher implements NaRPCService<TcpNameNodeRequest, TcpNam
 			response.setType(type);
 			switch(request.getCmd()) {
 			case RpcProtocol.CMD_CREATE_FILE:
-				error = service.createFile(request.createFile(), response.createFile(), response);
+				error = service.createFile(request.createFile(), response.createFile(), response, nrRetries, context);
 				break;			
 			case RpcProtocol.CMD_GET_FILE:
 				error = service.getFile(request.getFile(), response.getFile(), response);
@@ -63,10 +68,10 @@ public class TcpRpcDispatcher implements NaRPCService<TcpNameNodeRequest, TcpNam
 				error = service.removeFile(request.removeFile(), response.removeFile(), response);
 				break;				
 			case RpcProtocol.CMD_RENAME_FILE:
-				error = service.renameFile(request.renameFile(), response.renameFile(), response);
+				error = service.renameFile(request.renameFile(), response.renameFile(), response, nrRetries);
 				break;		
 			case RpcProtocol.CMD_GET_BLOCK:
-				error = service.getBlock(request.getBlock(), response.getBlock(), response);
+				error = service.getBlock(request.getBlock(), response.getBlock(), response, nrRetries);
 				break;
 			case RpcProtocol.CMD_GET_LOCATION:
 				error = service.getLocation(request.getLocation(), response.getLocation(), response);
@@ -103,6 +108,12 @@ public class TcpRpcDispatcher implements NaRPCService<TcpNameNodeRequest, TcpNam
 			e.printStackTrace();
 		}
 		
+    if (error == RpcErrors.ERR_RETRY) {
+      response = null;
+    }
+    if (error != RpcErrors.ERR_OK) {
+      System.out.println("ERROR: ended with RpcErrors." + error + "\n");
+    }
 		return response;		
 	}
 

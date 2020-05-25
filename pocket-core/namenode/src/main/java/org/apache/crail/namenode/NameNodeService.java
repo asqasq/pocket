@@ -42,6 +42,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 public class NameNodeService implements RpcNameNodeService, Sequencer {
 	private static final Logger LOG = CrailUtils.getLogger();
+  private static final int MAX_NR_RETRIES = 1000;
 	
 	//data structures for datanodes, blocks, files
 	private long serviceId;
@@ -84,7 +85,8 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 	}
 
 	@Override
-	public short createFile(RpcRequestMessage.CreateFileReq request, RpcResponseMessage.CreateFileRes response, RpcNameNodeState errorState) throws Exception {
+	public short createFile(RpcRequestMessage.CreateFileReq request, RpcResponseMessage.CreateFileRes response, RpcNameNodeState errorState,
+                          int nrRetries, RpcNameNodeContext context) throws Exception {
 		//check protocol
 		if (!RpcProtocol.verifyProtocol(RpcProtocol.CMD_CREATE_FILE, request, response)) {
 			return RpcErrors.ERR_PROTOCOL_MISMATCH;
@@ -121,25 +123,42 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 		if (locationClass < 0){
 			locationClass = parentInfo.getLocationClass();
 		}
+	
+    AbstractNode fileInfo;
+    if (context.getContext(0) == null) {  
+      fileInfo = fileTree.createNode(fileHash.getFileComponent(), type, storageClass, locationClass, enumerable);
+      try {
+        AbstractNode oldNode = parentInfo.putChild(fileInfo);
+        if (oldNode != null && oldNode.getFd() != fileInfo.getFd()){
+          appendToDeleteQueue(oldNode);				
+        }		
+      } catch(Exception e){
+        System.out.println("createFiles(): RpcErrors.ERR_FILE_EXISTS, nrRetries = " + nrRetries + ", context set + " + (context != null) + "\n");
+        return RpcErrors.ERR_FILE_EXISTS;
+      }
+      fileTable.put(fileInfo.getFd(), fileInfo);
+      context.setContext(0, fileInfo);
+    } else {
+      fileInfo = (AbstractNode)context.getContext(0);
+    }
 		
-		AbstractNode fileInfo = fileTree.createNode(fileHash.getFileComponent(), type, storageClass, locationClass, enumerable);
-		try {
-			AbstractNode oldNode = parentInfo.putChild(fileInfo);
-			if (oldNode != null && oldNode.getFd() != fileInfo.getFd()){
-				appendToDeleteQueue(oldNode);				
-			}		
-		} catch(Exception e){
-			return RpcErrors.ERR_FILE_EXISTS;
-		}
-		fileTable.put(fileInfo.getFd(), fileInfo);
-		
-		NameNodeBlockInfo fileBlock = blockStore.getBlock(fileInfo.getStorageClass(), fileInfo.getLocationClass(),_lookupMask(fileInfo));
-		if (fileBlock == null){
-			return RpcErrors.ERR_NO_FREE_BLOCKS;
-		}			
-		if (!fileInfo.addBlock(0, fileBlock)){
-			return RpcErrors.ERR_ADD_BLOCK_FAILED;
-		}
+    NameNodeBlockInfo fileBlock;
+    if (context.getContext(1) == null) {
+      fileBlock = blockStore.getBlock(fileInfo.getStorageClass(), fileInfo.getLocationClass(),_lookupMask(fileInfo));
+      if (fileBlock == null){
+        if (nrRetries < MAX_NR_RETRIES) {
+          System.out.println("createFile(): RpcErrors.ERR_NO_FREE_BLOCKS, nrRetries = " + nrRetries + "\n");
+          return RpcErrors.ERR_RETRY;
+        }
+        return RpcErrors.ERR_NO_FREE_BLOCKS;
+      }			
+      if (!fileInfo.addBlock(0, fileBlock)){
+        return RpcErrors.ERR_ADD_BLOCK_FAILED;
+      }
+      context.setContext(1, fileBlock);
+    } else {
+      fileBlock = (NameNodeBlockInfo)context.getContext(1);
+    }
 		
 		NameNodeBlockInfo parentBlock = null;
 		if (fileInfo.getDirOffset() >= 0){
@@ -148,6 +167,10 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 			if (parentBlock == null){
 				parentBlock = blockStore.getBlock(parentInfo.getStorageClass(), parentInfo.getLocationClass(), _lookupMask(parentInfo));
 				if (parentBlock == null){
+          if (nrRetries < MAX_NR_RETRIES) {
+            System.out.println("createFile()<2>: RpcErrors.ERR_NO_FREE_BLOCKS, nrRetries = " + nrRetries + "\n");
+            return RpcErrors.ERR_RETRY;
+          }
 					return RpcErrors.ERR_NO_FREE_BLOCKS;
 				}			
 				if (!parentInfo.addBlock(index, parentBlock)){
@@ -299,7 +322,7 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 	}	
 	
 	@Override
-	public short renameFile(RpcRequestMessage.RenameFileReq request, RpcResponseMessage.RenameRes response, RpcNameNodeState errorState) throws Exception {
+	public short renameFile(RpcRequestMessage.RenameFileReq request, RpcResponseMessage.RenameRes response, RpcNameNodeState errorState, int nrRetries) throws Exception {
 		//check protocol
 		if (!RpcProtocol.verifyProtocol(RpcProtocol.CMD_RENAME_FILE, request, response)){
 			return RpcErrors.ERR_PROTOCOL_MISMATCH;
@@ -348,6 +371,7 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 		
 		AbstractNode dstFile = fileTree.retrieveFile(dstFileHash, errorState);
 		if (dstFile != null && !dstFile.getType().isDirectory()){
+      System.out.println("renameFiles(): RpcErrors.ERR_FILE_EXISTS\n");
 			return RpcErrors.ERR_FILE_EXISTS;
 		}		
 		if (dstFile != null && dstFile.getType().isDirectory()){
@@ -366,6 +390,7 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 			}				
 			dstFile = srcFile;
 		} catch(Exception e){
+      System.out.println("renameFiles()<2>: RpcErrors.ERR_FILE_EXISTS\n");
 			return RpcErrors.ERR_FILE_EXISTS;
 		}
 		
@@ -375,6 +400,10 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 		if (dstBlock == null){
 			dstBlock = blockStore.getBlock(dstParent.getStorageClass(), dstParent.getLocationClass(), _lookupMask(dstParent));
 			if (dstBlock == null){
+        if (nrRetries < MAX_NR_RETRIES) {
+          System.out.println("renameFile(): RpcErrors.ERR_NO_FREE_BLOCKS, nrRetries = " + nrRetries + "\n");
+          return RpcErrors.ERR_RETRY;
+        }
 				return RpcErrors.ERR_NO_FREE_BLOCKS;
 			}			
 			if (!dstParent.addBlock(index, dstBlock)){
@@ -444,6 +473,7 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 			return RpcErrors.ERR_PROTOCOL_MISMATCH;
 		}		
 		
+    System.out.println("++++++++++++++++++++++++++++++++++++ setBlock +++++++++++++++++++++++++++++++++\n");
 		//get params
 		BlockInfo region = new BlockInfo();
 		// atr: the call from the datanode to here to set block is more like SET_REGION, we should rename it.
@@ -460,6 +490,7 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 			int realBlocks = (int) (((long) region.getLength()) / CrailConstants.BLOCK_SIZE) ;
 			long offset = 0;
 			for (int i = 0; i < realBlocks; i++){
+//        System.out.println("add block nr " + i + "\n");
 				NameNodeBlockInfo nnBlock = new NameNodeBlockInfo(region, offset, (int) CrailConstants.BLOCK_SIZE);
 				error = blockStore.addBlock(nnBlock);
 				offset += CrailConstants.BLOCK_SIZE;
@@ -474,7 +505,7 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 	}
 
 	@Override
-	public short getBlock(RpcRequestMessage.GetBlockReq request, RpcResponseMessage.GetBlockRes response, RpcNameNodeState errorState) throws Exception {
+	public short getBlock(RpcRequestMessage.GetBlockReq request, RpcResponseMessage.GetBlockRes response, RpcNameNodeState errorState, int nrRetries) throws Exception {
 		//check protocol
 		if (!RpcProtocol.verifyProtocol(RpcProtocol.CMD_GET_BLOCK, request, response)){
 			return RpcErrors.ERR_PROTOCOL_MISMATCH;
@@ -490,6 +521,11 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 		if (position < 0){
 			return RpcErrors.ERR_POSITION_NEGATIV;
 		}
+
+
+//    System.out.println("getBlock: show stacktrace: ");
+//    Thread.dumpStack();
+//    new Exception("asq: getBlock() stack trace\n").printStackTrace();
 	
 		//rpc
 		AbstractNode fileInfo = fileTable.get(fd);
@@ -506,6 +542,10 @@ public class NameNodeService implements RpcNameNodeService, Sequencer {
 		if (block == null && fileInfo.getToken() == token){
 			block = blockStore.getBlock(fileInfo.getStorageClass(), fileInfo.getLocationClass(), _lookupMask(fileInfo));
 			if (block == null){
+        if (nrRetries < MAX_NR_RETRIES) {
+          System.out.println("getBlock(): RpcErrors.ERR_NO_FREE_BLOCKS, nrRetries = " + nrRetries + "\n");
+          return RpcErrors.ERR_RETRY;
+        }
 				return RpcErrors.ERR_NO_FREE_BLOCKS;
 			}
 			if (!fileInfo.addBlock(index, block)){
